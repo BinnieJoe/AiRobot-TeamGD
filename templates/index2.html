@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Depth Camera Stream</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: url("{{ url_for('static', filename='background.png') }}") no-repeat center center fixed;
+            background-size: cover;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding-top: 60px; /* 화면 상단의 여백을 줄임 */
+            align-items: center; /* 중앙 정렬 */
+        }
+        .logo {
+            position: absolute;
+            top: 10px; /* 로고를 화면 상단에 위치 */
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .logo img {
+            width: 100px; /* 로고의 너비를 200px로 설정 */
+            height: auto; /* 높이는 자동으로 설정 */
+        }
+        .content {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            height: 100%;
+        }
+        .video-stream, .video-list, .video-playback {
+            flex: 1;
+            margin: 10px;
+        }
+        .video-list {
+            overflow-y: auto; /* Change to auto to show scroll bar only when needed */
+            max-height: calc(100vh - 120px); /* Set max height to fit within the viewport */
+        }
+        .fullscreen-btn, .minimize-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+        }
+        .fullscreen-btn img, .minimize-btn img {
+            width: 30px !important;
+            height: 30px !important;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+        }
+        .section-title {
+            border: 2px solid #000000;
+            border-radius: 10px;
+            padding: 5px;
+            display: inline-block;
+            background-color: #ffffff;
+            margin-bottom: 10px; /* Add margin to push table down */
+        }
+        .video-container img, .video-container video {
+            width: 100%;
+            height: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #ffffff; /* 내부 배경색 흰색으로 설정 */
+        }
+        th, td {
+            border: 2px solid #000000; /* 테두리와 선 굵게 설정 */
+            padding: 8px;
+            text-align: center; /* 글자를 가운데 정렬 */
+        }
+        th {
+            background-color: #808080; /* 제목 부분 색 변경 */
+            color: #ffffff;
+            font-size: 18px; /* 제목 폰트 크기 키우기 */
+        }
+        /* 전체화면 모드에서 비율 유지 */
+        #live-stream-container:fullscreen {
+            width: 100vw;
+            height: 100vh;
+        }
+        #live-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+    <script>
+        function playVideo(videoUrl) {
+            console.log("Playing video:", videoUrl); // 비디오 URL 로그 출력
+            const videoPlayer = document.getElementById('video-player');
+            const videoSource = document.getElementById('video-source');
+            videoSource.src = videoUrl;
+            videoPlayer.load();
+
+            videoPlayer.onloadeddata = () => {
+                console.log("Video loaded successfully");
+                videoPlayer.play().catch(error => console.error("Failed to play the video: ", error));
+            };
+            videoPlayer.onerror = (e) => {
+                console.error("Error occurred while loading the video:", e);
+                const errorElement = document.createElement('div');
+                errorElement.innerHTML = `Error: ${e.message}`;
+                document.body.appendChild(errorElement);
+            };
+
+            videoPlayer.onstalled = () => console.error("Video stalled");
+            videoPlayer.onabort = () => console.error("Video playback aborted");
+            videoPlayer.onemptied = () => console.error("Video emptied");
+            videoPlayer.onpause = () => console.log("Video paused");
+            videoPlayer.onplay = () => console.log("Video playing");
+            videoPlayer.onplaying = () => console.log("Video started playing");
+            videoPlayer.onseeking = () => console.log("Video seeking");
+            videoPlayer.onseeked = () => console.log("Video seeked");
+            videoPlayer.ontimeupdate = () => console.log("Time update");
+        }
+
+        function toggleFullscreen(elementId) {
+            const elem = document.getElementById(elementId);
+            const fullscreenBtn = elem.querySelector('.fullscreen-btn');
+            const minimizeBtn = elem.querySelector('.minimize-btn');
+            if (!document.fullscreenElement) {
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.mozRequestFullScreen) { // Firefox
+                    elem.mozRequestFullScreen();
+                } else if (elem.webkitRequestFullscreen) { // Chrome, Safari and Opera
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { // IE/Edge
+                    elem.msRequestFullscreen();
+                }
+                if (fullscreenBtn) fullscreenBtn.style.display = 'none';
+                if (minimizeBtn) minimizeBtn.style.display = 'block';
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.mozCancelFullScreen) { // Firefox
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) { // Chrome, Safari and Opera
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) { // IE/Edge
+                    document.msExitFullscreen();
+                }
+                if (fullscreenBtn) fullscreenBtn.style.display = 'block';
+                if (minimizeBtn) minimizeBtn.style.display = 'none';
+            }
+        }
+
+        document.addEventListener('fullscreenchange', () => {
+             const fullscreenElements = document.querySelectorAll('.video-container');
+             fullscreenElements.forEach(elem => {
+                const fullscreenBtn = elem.querySelector('.fullscreen-btn');
+                const minimizeBtn = elem.querySelector('.minimize-btn');
+                if (document.fullscreenElement && document.fullscreenElement === elem) {
+                     if (fullscreenBtn) fullscreenBtn.style.display = 'none';
+                      if (minimizeBtn) minimizeBtn.style.display = 'block';
+                } else {
+                    if (fullscreenBtn) fullscreenBtn.style.display = 'block';
+                    if (minimizeBtn) minimizeBtn.style.display = 'none';
+            }
+         });
+});
+    </script>
+</head>
+<body>
+    <div class="logo">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+    </div>
+    <div class="container">
+        <div class="content">
+            <div class="video-stream">
+                <h2 class="section-title">Live Stream</h2>
+                <div class="video-container" id="live-stream-container">
+                    <img id="live-stream" src="{{ url_for('video_feed') }}" alt="Video stream not available">
+                    <button class="fullscreen-btn" onclick="toggleFullscreen('live-stream-container')">
+                        <img src="{{ url_for('static', filename='fullscreen-icon.png') }}" alt="Fullscreen">
+                    </button>
+                    <button class="minimize-btn" onclick="toggleFullscreen('live-stream-container')" style="display:none;">
+                        <img src="{{ url_for('static', filename='minimize-icon.png') }}" alt="Minimize">
+                    </button>
+                </div>
+            </div>
+            <div class="video-list">
+                <h2 class="section-title">Saved Videos</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Play</th>
+                            <th>Save</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for file in files %}
+                        <tr>
+                            <td>{{ file }}</td>
+                            <td>
+                                <a href="#" data-video-url="{{ url_for('video', filename=file) }}" onclick="playVideo(this.getAttribute('data-video-url')); return false;">Play</a>
+                            </td>
+                            <td><a href="{{ url_for('video', filename=file) }}" download="{{ file }}">Save</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="video-playback">
+                <h2 class="section-title">Video Playback</h2>
+                <div class="video-container">
+                    <video id="video-player" controls>
+                        <source id="video-source" src="" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
